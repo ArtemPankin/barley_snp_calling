@@ -10,7 +10,7 @@
 
 #### snakemake pipeline (requires LSF/bsub job management system):
 
-(1) install conda (https://conda.io/projects/conda/en/latest/user-guide/install/index.html)
-(2) create conda environment (conda-env create --file environment.yaml)
-(3) activate conda environment (conda-env activate snakemake_read_vcf)
+(1) install conda (https://conda.io/projects/conda/en/latest/user-guide/install/index.html) \
+(2) create conda environment (conda-env create --file environment.yaml) \
+(3) activate conda environment (conda-env activate snakemake_read_vcf) \
 (4) create data/ folder with required files (reference genome fasta)
