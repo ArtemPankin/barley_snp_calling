@@ -1,0 +1,252 @@
+#BSUB -q multicore20 
+#BSUB -J my_job[1-95]
+#BSUB -n 4
+#BSUB -R span[hosts=1]
+#BSUB -o output_mapping.txt
+#BSUB -R rusage[mem=20000]
+#BSUB -M 25000
+
+
+	set -euo pipefail
+
+## setting path and name variables, creating directories
+
+	binpath="/biodata/dep_coupland/grp_korff/bin/"
+
+	mkdir -p bam_files
+
+	name=`sed -n "${LSB_JOBINDEX}"p $2 | sed 's:\_1.fq:\_filtered.fq:g'`
+	
+	name1=`sed -n "${LSB_JOBINDEX}"p $2` # for unzipping
+	name2=`sed -n "${LSB_JOBINDEX}"p $2 | sed 's:\_1:\_2:'` # for unzipping
+
+	sampleID=`echo $name | sed 's:.*\/::g' | sed 's:\_filtered.fq::g'`
+
+	netsc=`echo $PWD"/"${sampleID} | sed "s/biodata/netscratch/"`
+	
+	mkdir -p ${netsc}
+
+	path=`echo $name | sed "s:\(.*\)\/.*:\1/:"`
+
+
+if [ ! -s ${netsc}/${sampleID}_UG_raw.vcf ]; then
+	
+if  [ ! -s ${netsc}/${sampleID}_2_cor.fq ] && [ ! -s ${netsc}/${sampleID}_2_cor.fq.gz ]; then
+
+
+## unzipping fastq files
+
+if [ ! -s  ${netsc}/${sampleID}_2.fq ]; then
+
+	bzip2 -dck ${name1}.bz2 | awk '{if(NF==2) print $'1'"/1"; else print $'1'}' > ${netsc}/${sampleID}_1.fq
+	bzip2 -dck ${name2}.bz2 | awk '{if(NF==2) print $'1'"/2"; else print $'1'}' > ${netsc}/${sampleID}_2.fq
+
+fi
+
+
+# ~~~~~~~~~~~~~~~~~~~~ READ FILTERING module~~~~~~~~~~~~~~~~~~~~~
+
+
+
+## removing duplicates, 
+
+if [ ! -s ${netsc}/${sampleID}_2_cdhit ]; then
+
+	${binpath}cd-hit-dup -i ${netsc}/${sampleID}_1.fq -i2 ${netsc}/${sampleID}_2.fq -o ${netsc}/${sampleID}_1_cdhit -o2 ${netsc}/${sampleID}_2_cdhit
+
+fi
+
+	rm -f ${netsc}/${sampleID}*.clstr
+
+## trimming adaptors, filtering by quality
+
+if [ ! -s ${netsc}/${sampleID}_1_cdhit_filtered ]; then
+
+	cat ${netsc}/${sampleID}_1_cdhit | 
+		fastx_trimmer -f $6 -l $7 -Q33 | 
+			fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT | 
+				fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCACACGTCTGAACTCCAGTCAC | 
+				fastx_artifacts_filter -Q33 > ${netsc}/${sampleID}_1_cdhit_filtered
+
+fi
+
+
+if [ ! -s ${netsc}/${sampleID}_2_cdhit_filtered ]; then
+
+	cat ${netsc}/${sampleID}_2_cdhit | 
+		fastx_trimmer -f $6 -l $7 -Q33 | 
+			fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT | 
+				fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCACACGTCTGAACTCCAGTCAC | 
+					fastx_artifacts_filter -Q33 > ${netsc}/${sampleID}_2_cdhit_filtered
+
+
+fi
+
+## re-synchronising filtered paired-end datasets 
+
+if [ ! -s ${netsc}/${sampleID}_2_cdhit_filtered_sync ]; then
+
+	python ${binpath}fastqCombinePairedEnd.py ${netsc}/${sampleID}_1_cdhit_filtered ${netsc}/${sampleID}_2_cdhit_filtered
+	
+	rename 's/pairs_R1.fastq/sync/' ${netsc}/${sampleID}_1_cdhit_filtered_pairs*
+
+	rename 's/pairs_R2.fastq/sync/' ${netsc}/${sampleID}_2_cdhit_filtered_pairs*
+
+fi
+
+## gzipping the fastq files for storage / submits gzip command to LSF
+
+	echo "gzip -3 ${netsc}/${sampleID}_1_cdhit_filtered_singles.fastq" | xargs bsub -o gzip_report.out
+
+## correcting sequencing errors using lighter
+
+if [ ! -s ${netsc}/${sampleID}_2_cor.fq.gz ] && [ ! -s ${netsc}/${sampleID}_2_cor.fq ]; then
+                                                                    	
+	${binpath}lighter -r ${netsc}/${sampleID}_1_cdhit_filtered_sync -r ${netsc}/${sampleID}_2_cdhit_filtered_sync -K 23 14000000 -maxcor 2 -t $3 -od ${netsc}
+           
+	rename 's/_cdhit_filtered_sync./_/' ${netsc}/${sampleID}_*_cdhit_filtered_sync.cor.fq
+
+## gzipping the filtered out
+
+	echo "gzip -3 ${netsc}/${sampleID}_1_cdhit_filtered_sync ${netsc}/${sampleID}_2_cdhit_filtered_sync" | xargs bsub -o gzip_report.out
+
+fi
+
+## removing temp files
+
+if [ -s ${netsc}/${sampleID}_2_cor.fq ]; then
+
+	rm -f ${netsc}/${sampleID}_1_cdhit ${netsc}/${sampleID}_2_cdhit 
+	rm -f ${netsc}/${sampleID}_1_cdhit_filtered ${netsc}/${sampleID}_2_cdhit_filtered
+	rm -f ${netsc}/${sampleID}_1.fq ${netsc}/${sampleID}_2.fq	
+
+fi
+
+
+
+fi
+
+
+	name1=${netsc}/${sampleID}_1_cor.fq
+
+	name2=${netsc}/${sampleID}_2_cor.fq
+
+
+# ~~~~~~~~~~~~~~~~~~~~MAPPING module~~~~~~~~~~~~~~~~~~~~~
+
+
+if ([ -s ${name2} ] || [ -s ${name2}.gz ]) && [ ! -s ${netsc}/${sampleID}_UG_raw.vcf ]; then # testing if filtered, corrected fastq exists then run mapping, otherwise generates empty bam files etc.
+
+## mapping pair-end reads using bwa mem
+
+if [ ! -s ${netsc}/${sampleID}.sam.gz ]; then
+
+
+	bwa mem $1 $name1 $name2 -t $3 -v 0 | 
+		
+		gzip -3 > ${netsc}/${sampleID}.sam.gz
+
+fi
+
+if [ ! -s ${netsc}/${sampleID}.bam ] && [ -s ${netsc}/${sampleID}.sam.gz ]; then
+
+	samtools view -S -q 1 -f 2 -b ${netsc}/${sampleID}.sam.gz | 
+		
+		samtools sort - -o ${netsc}/${sampleID}.bam ## filtering reads uniquely mapped in proper pairs
+fi
+
+## zipping corrected fastq files when mapping is finished; uses LSF
+
+if [ -s ${netsc}/${sampleID}.bam ] && [ ! -s ${name2}.gz ]; then 
+
+	echo "gzip -3 $name1 $name2" | xargs bsub -o gzip_report.out
+
+fi
+
+# ~~~~~~~~~~~~~~~~~SNP CALLING module~~~~~~~~~~~~~~~~~~~~~~~~
+
+
+## preparing bam files for GATK
+
+if [ ! -s ${netsc}/${sampleID}_rg.bam.bai ] && [ -s ${netsc}/${sampleID}.bam ]; then 
+
+	java -Xmx10g -jar ${binpath}AddOrReplaceReadGroups.jar INPUT=${netsc}/${sampleID}.bam OUTPUT=${netsc}/${sampleID}_rg.bam RGLB=${sampleID}_lib RGPL=Illumina RGPU=run RGSM=${sampleID} VALIDATION_STRINGENCY=LENIENT
+
+	samtools index ${netsc}/${sampleID}_rg.bam
+
+fi
+
+## realigning INDEL regions; GATK INDEL realigner
+
+if [ ! -s ${netsc}/${sampleID}_rg.intervals ] && [ -s ${netsc}/${sampleID}_rg.bam ]; then
+
+	java -Xmx20g -jar ${binpath}GenomeAnalysisTK.jar -T RealignerTargetCreator -R $1 -nt $3 -I ${netsc}/${sampleID}_rg.bam -o ${netsc}/${sampleID}_rg.intervals
+
+fi
+
+if [ ! -s bam_files/${sampleID}_fin.bai ] && [ -s ${netsc}/${sampleID}_rg.intervals ]; then
+
+	java -Xmx20g -jar ${binpath}GenomeAnalysisTK.jar -T IndelRealigner -R $1 -I ${netsc}/${sampleID}_rg.bam -targetIntervals ${netsc}/${sampleID}_rg.intervals -o bam_files/${sampleID}_fin.bam --filter_mismatching_base_and_quals
+
+fi
+
+if [ ! -s bam_files ]; then
+
+	touch bam_files
+
+fi
+
+echo ${sampleID}_fin.bam >> bam_files
+
+
+
+# GATK UnifiedGenotyper raw calls
+
+if [ ! -s ${netsc}/${sampleID}_UG_raw.vcf.idx ] && [ -s bam_files/${sampleID}_fin.bam ]; then
+
+	java -Xmx20g -jar ${binpath}GenomeAnalysisTK.jar -T UnifiedGenotyper -R $1 -glm BOTH -o ${netsc}/${sampleID}_UG_raw.vcf -nct $3 -I bam_files/${sampleID}_fin.bam
+
+fi
+
+## removing temporary files
+
+if [ -s ${netsc}/${sampleID}_UG_raw.vcf ]; then
+
+	rm -f ${netsc}/${sampleID}_rg.intervals
+	rm -f ${netsc}/${sampleID}_rg.bam
+	rm -f ${netsc}/${sampleID}_rg.bam.bai
+	rm -f ${netsc}/${sampleID}.sam.gz
+	rm -f ${netsc}/${sampleID}_1.fastq.gz
+	rm -f ${netsc}/${sampleID}_2.fastq.gz
+	rm -f ${netsc}/${sampleID}.bam
+	
+
+fi
+
+fi
+
+fi
+
+## GATK HaplotypeCaller (INDEL + SNP + invariant) raw calls - gvcf
+
+	java -Xmx7g -jar ${binpath}GenomeAnalysisTK.jar -R $1 -T HaplotypeCaller -I bam_files/${sampleID}_fin.bam --emitRefConfidence GVCF -o ${netsc}/${sampleID}.raw.snps.indels.g.vcf
+
+
+## filtering raw HC files for depth > 1; the raw files are too large to store
+
+if [ -s ${netsc}/${sampleID}.raw.snps.indels.g.vcf ]; then
+
+	grep "#" ${netsc}/${sampleID}.raw.snps.indels.g.vcf > head.${id}
+
+	grep -v "#" ${netsc}/${sampleID}.raw.snps.indels.g.vcf | 
+	awk 'BEGIN{FS="\t|:"}(NF == 18 || NF == 20) && $(NF-3) > 1{print $'0'};NF==24 && $(NF-5) > 1{print $'0'}' |
+	cat head.${sampleID} - > ${netsc}/${sampleID}.dp2.snps.indels.g.vcf
+
+fi
+
+if [ -s ${pathnet}/${id}/${id}.dp2.snps.indels.g.vcf ]; then
+
+	rm -f head.${id}
+	rm -f ${netsc}/${sampleID}.raw.snps.indels.g.vcf 
+
+fi

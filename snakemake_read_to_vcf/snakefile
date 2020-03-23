@@ -1,0 +1,36 @@
+REFERENCE = ["chr1"] ## define reference genome id
+
+
+rule all:
+            input:
+                expand("data/{genome}.dict", genome = REFERENCE),
+                expand("data/{genome}.fa.fai", genome = REFERENCE),
+                expand("data/{genome}.fa.pac", genome = REFERENCE)
+
+
+rule create_seq_dictionary:
+    input: 
+             "data/{genome}.fa"
+    output:
+             "data/{genome}.dict"
+    shell:
+        "gatk CreateSequenceDictionary -R {input} -O {output}"
+
+rule samtools_ref_index:
+	input:
+		"data/{genome}.fa"
+	output:
+                "data/{genome}.fa.fai"
+	shell:
+		"samtools faidx {input}"
+
+rule bwa_ref_index:
+	input:
+		"data/{genome}.fa"
+	output:
+                "data/{genome}.fa.pac"
+	shell:
+    		"bwa index {input}"
+
+
+

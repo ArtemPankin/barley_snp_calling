@@ -1,0 +1,51 @@
+#BSUB -n 2
+#BSUB -q multicore20
+#BSUB -J ap[1-478]
+#BSUB -M 10000
+#BSUB -R rusage[mem=7000]
+
+	set -euo pipefail
+
+
+input=`sed -n "${LSB_JOBINDEX}"p 478bam | awk '{print "bam_files/"$0}'`
+
+id=`sed -n "${LSB_JOBINDEX}"p 478bam | sed "s/_fin.bam//"`
+
+pathnet=/netscratch/dep_coupland/grp_korff/artem/mapping_new_artem
+
+binpath="/biodata/dep_coupland/grp_korff/bin/"
+
+netsc=`echo $PWD"/"${id} | sed "s/biodata/netscratch/"`
+
+
+## UNIFIED GENOTYPER MODULE (raw UG calling files - filtering_mapping.bsub; merged in merge_UG.sh)
+
+
+if [ ! -s  /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_gen.vcf ]; then
+
+	java -Xmx4g -jar $binpath/GenomeAnalysisTK.jar \
+		-R new_reference.chrom.fa \
+		-T UnifiedGenotyper \
+		-glm BOTH \
+		--genotyping_mode GENOTYPE_GIVEN_ALLELES \
+		--alleles rawcalls.478samples.mpipz.minN1.vcf \
+		--output_mode EMIT_ALL_SITES \
+		-o ${pathnet}/${id}_UG_gen.vcf \
+		-I ${input} \
+		-pcr_error 5.0E-2
+
+fi
+
+if [ -s /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_gen.vcf ]; then
+
+	java -Xmx4g -jar $binpath/GenomeAnalysisTK.jar -R new_reference.chrom.fa -T SelectVariants --variant /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_gen.vcf --restrictAllelesTo BIALLELIC -selectType SNP -select '( AC > 1 || AC < 1 ) && DP > 8 && FS < 60.0 && MQ > 20.0' -o /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_homoSNP.vcf 
+	
+fi
+
+	rm -f /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_raw.vcf
+	rm -f /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_raw.vcf.idx
+	rm -f /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_gen.vcf
+	rm -f /netscratch/dep_coupland/grp_korff/artem/mapping_new_artem/${id}/${id}_UG_gen.vcf.idx
+
+
+## END UNIFIED GENOTYPER
