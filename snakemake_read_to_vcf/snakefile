@@ -1,5 +1,22 @@
-REFERENCE = ["chr1"] ## define reference genome id
+import yaml
 
+#################
+## reference genome id
+#################
+
+REFERENCE = ["chr1"]
+
+#################
+## CONFIG files
+#################
+
+with open('cluster.yaml', mode='r') as f:
+    cluster_config = yaml.load(f)
+
+
+################
+## RULES
+################
 
 rule all:
             input:
@@ -31,6 +48,3 @@ rule bwa_ref_index:
                 "data/{genome}.fa.pac"
 	shell:
     		"bwa index {input}"
-
-
-
