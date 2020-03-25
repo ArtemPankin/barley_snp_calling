@@ -8,7 +8,7 @@
 (4) after all bsub jobs are finished, run merge_UG1.sh \
 (5) run filtering_vsqr.sh
 
-#### snakemake pipeline (folder: snakemake_read_to_vcf; requires LSF/bsub job management system):
+#### snakemake pipeline (dir: snakemake_read_to_vcf; requires LSF/bsub job management system):
 
 (1) install conda (https://conda.io/projects/conda/en/latest/user-guide/install/index.html) \
 (2) create conda environment (conda-env create --file environment.yaml) \
