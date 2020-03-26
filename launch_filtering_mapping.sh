@@ -11,8 +11,8 @@
 	# intersectBed, 
 	# bamToFastq, 
 	# AddOrReplaceReadGroups.jar, 
-## The script requires two dependent BSUB scripts 'filt_map_snp.bsub', 'genotyping.bsub'. They should be placed in the same folder
-## we recommend reserving memory for this script (~ 80 Gb in out case)
+## The script requires two dependent BSUB scripts 'filt_map_snp.bsub', 'genotyping.bsub'. These scripts should be placed in the same folder
+## We recommend reserving memory for this script (~ 80 Gb in our case)
 
 ## The script should be started in with the eight compulsory arguments: 
 ## bash read_mapping_snp_calling.sh /
@@ -25,11 +25,11 @@
 ## $7 - last base to keep in bp, based on the FASTQC results /
 ## $8 - error correction by Lighter software (correction/nocorrection) (https://github.com/mourisl/Lighter) /
 ## $9 - skip_mapping/skip_genotyping(optional)
-## $10 - russ/my
+## $10 - russ/my (optional; do not use - only for internal testing)
 ## Example command:
 ## bash read_mapping_snp_calling.sh reference_genome_23408contigs.fa read_files.list 8 unfiltered cDNA_coordinates.bed 5 90 correction
 
-## The script is using BSUB LSF system for parallel computing
+## The script requires BSUB LSF system for parallel computing
 
 #!/bin/sh
 

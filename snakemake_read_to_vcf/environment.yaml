@@ -12,4 +12,5 @@ dependencies:
   - bwa =0.7.17
   - graphviz =2.38.0
   - gatk4 =4.1.5.0
+  - bzip2 =1.0.8
 
