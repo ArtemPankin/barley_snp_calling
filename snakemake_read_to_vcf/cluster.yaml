@@ -1,14 +1,24 @@
 __default__:
-       nCPUs     : 1
-       queue     : "normal"
-       memory    : 1000
-       resources : "\"rusage[mem=1000] span[hosts=1]\""
-       name      : "JOBNAME.{rule}.{wildcards}"
-       output    : "logs/cluster_{rule}.{wildcards}.o"
-       error     : "logs/cluster_{rule}.{wildcards}.e"
-   
+    nCPUs     : 1
+    queue     : "normal"
+    memory    : 1000
+    resources : "\"rusage[mem=1000] span[hosts=1]\""
+    name      : "JOBNAME.{rule}.{wildcards}"
+    output    : "logs/cluster_{rule}.{wildcards}.o"
+    error     : "logs/cluster_{rule}.{wildcards}.e"
+
 bwa_ref_index:
-      nCPUs     : 2
-      queue     : "multicore20"
-      memory    : 5000
-      resources : "\"rusage[mem=5000] span[hosts=1]\""
+    nCPUs     : 2
+    queue     : "multicore20"
+    memory    : 5000
+    resources : "\"rusage[mem=5000] span[hosts=1]\""
+    output    : "logs/cluster_{rule}.{wildcards}.o"
+    error     : "logs/cluster_{rule}.{wildcards}.e"
+
+cd_hit:
+    nCPUs     : 2
+    memory    : 50000
+    queues    : "multicore20"
+    resources : "\"rusage[mem=50000] span[hosts=1]\""
+    output    : "logs/cluster_{rule}.{wildcards}.o"
+    error     : "logs/cluster_{rule}.{wildcards}.e"

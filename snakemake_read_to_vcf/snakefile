@@ -1,50 +1,84 @@
 import yaml
 
-#################
-## reference genome id
-#################
-
-REFERENCE = ["chr1"]
+shell.prefix("set -euo pipefail; ")
 
 #################
 ## CONFIG files
 #################
 
+configfile: "config.yaml"
+
 with open('cluster.yaml', mode='r') as f:
     cluster_config = yaml.load(f)
 
-
-################
-## RULES
-################
+#################
+## reference genome id
+#################
+ 
+REFERENCE = config["genome"]
+SAMPLES = config["sample_name"]
+REPLICATES=[1,2]
 
 rule all:
-            input:
-                expand("data/{genome}.dict", genome = REFERENCE),
-                expand("data/{genome}.fa.fai", genome = REFERENCE),
-                expand("data/{genome}.fa.pac", genome = REFERENCE)
-
+     input:
+           expand("data/{genome}.dict", genome = REFERENCE),
+           expand("data/{genome}.fa.fai", genome = REFERENCE),
+           expand("data/{genome}.fa.pac", genome = REFERENCE),
+           expand("filtered_reads/{sample}_{repl}_cdhit", sample = SAMPLES.split(" "), repl = REPLICATES)
 
 rule create_seq_dictionary:
     input: 
              "data/{genome}.fa"
     output:
              "data/{genome}.dict"
+    log:
+             "logs/seq_dict/{genome}.log"
     shell:
-        "gatk CreateSequenceDictionary -R {input} -O {output}"
+             "(gatk CreateSequenceDictionary -R {input} -O {output}) 2> {log}"
 
 rule samtools_ref_index:
 	input:
 		"data/{genome}.fa"
 	output:
                 "data/{genome}.fa.fai"
+	log:
+	        "logs/sam_ref_index/{genome}.log"
 	shell:
-		"samtools faidx {input}"
+		"(samtools faidx {input}) 2> {log}"
 
 rule bwa_ref_index:
 	input:
 		"data/{genome}.fa"
 	output:
                 "data/{genome}.fa.pac"
+	log:
+                "logs/bwa_index/{genome}.log"
 	shell:
-    		"bwa index {input}"
+    		"(bwa index {input}) 2> {log}"
+
+rule bzip2_fastq:
+        input:
+	        "data/{sample}_{repl}.fq.bz2"
+	output:
+		"filtered_reads/{sample}_{repl}.fq"
+	log:
+                "logs/bzip2/{sample}_{repl}.log"
+	params:
+		bzip="-dck"
+	shell:
+		"(bzip2 {params.bzip} {input} | "
+		"""awk "{{if(NF==2) print \$1\\" /{wildcards.repl}\\"; else print \$1}}" > {output}) 2> {log}"""
+
+rule cd_hit:
+	input:
+		read1="filtered_reads/{sample}_1.fq",
+		read2="filtered_reads/{sample}_2.fq"
+	output:
+		filtread1="filtered_reads/{sample}_1_cdhit",
+		filtread2="filtered_reads/{sample}_2_cdhit"
+	shadow:
+	        "shallow"
+	log:
+                "logs/cd_hit/{sample}.log"
+	shell:
+	        "(cd-hit-dup -i {input.read1} -i2 {input.read2} -o {output.filtread1} -o2 {output.filtread2}) 2> {log}"

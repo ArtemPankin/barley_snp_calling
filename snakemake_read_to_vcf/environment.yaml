@@ -13,4 +13,6 @@ dependencies:
   - graphviz =2.38.0
   - gatk4 =4.1.5.0
   - bzip2 =1.0.8
-
+  - cd-hit-auxtools =4.6.8
+  - fastx_toolkit =0.0.14
+  - lighter =1.1.2
