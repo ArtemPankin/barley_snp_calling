@@ -14,7 +14,7 @@ with open('cluster.yaml', mode='r') as f:
 #################
 ## reference genome id
 #################
- 
+
 REFERENCE = config["genome"]
 SAMPLES = config["sample_name"]
 REPLICATES=[1,2]
@@ -24,8 +24,7 @@ rule all:
            expand("data/{genome}.dict", genome = REFERENCE),
            expand("data/{genome}.fa.fai", genome = REFERENCE),
            expand("data/{genome}.fa.pac", genome = REFERENCE),
-           expand("filtered_reads/{sample}_{repl}_cdhit", sample = SAMPLES.split(" "), repl = REPLICATES)
-
+	   expand("bam_files/{sample}.sam.gz", sample = SAMPLES.split(" "))
 rule create_seq_dictionary:
     input: 
              "data/{genome}.fa"
@@ -60,7 +59,7 @@ rule bzip2_fastq:
         input:
 	        "data/{sample}_{repl}.fq.bz2"
 	output:
-		"filtered_reads/{sample}_{repl}.fq"
+		temp("filtered_reads/{sample}_{repl}.fq")
 	log:
                 "logs/bzip2/{sample}_{repl}.log"
 	params:
@@ -74,11 +73,67 @@ rule cd_hit:
 		read1="filtered_reads/{sample}_1.fq",
 		read2="filtered_reads/{sample}_2.fq"
 	output:
-		filtread1="filtered_reads/{sample}_1_cdhit",
-		filtread2="filtered_reads/{sample}_2_cdhit"
+		filtread1=temp("filtered_reads/{sample}_1_cdhit"),
+		filtread2=temp("filtered_reads/{sample}_2_cdhit")
 	shadow:
 	        "shallow"
 	log:
                 "logs/cd_hit/{sample}.log"
 	shell:
 	        "(cd-hit-dup -i {input.read1} -i2 {input.read2} -o {output.filtread1} -o2 {output.filtread2}) 2> {log}"
+	
+rule fastx_filt:
+	input:
+		"filtered_reads/{sample}_{repl}_cdhit"
+	output:
+		temp("filtered_reads/{sample}_{repl}_cdhit_filtered")
+	shadow:
+                "shallow"
+	log:
+		"logs/fastx/{sample}_{repl}.log"
+	shell:
+		"(fastx_trimmer -f 5 -l 95 -Q33 < {input} | " 
+		"fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCGTCGTGTAGGGAAAGAGTGTAGATCTCGGTGGTCGCCGTATCATT | " 
+		"fastx_clipper -Q33 -l 30 -a GATCGGAAGAGCACACGTCTGAACTCCAGTCAC | "
+		"fastx_artifacts_filter -Q33 > {output}) 2> {log}"
+
+rule sync_paired:
+	input:
+		"filtered_reads/{sample}_1_cdhit_filtered",
+		"filtered_reads/{sample}_2_cdhit_filtered"
+	output:
+		temp("filtered_reads/{sample}_1_cdhit_filtered_pairs_R1.fastq"),
+		temp("filtered_reads/{sample}_2_cdhit_filtered_pairs_R2.fastq")
+	log: 
+		"logs/sync_paired/{sample}.log"
+	script:
+		"(scripts/fastqCombinePairedEnd.py) 2> {log}"
+
+
+rule lighter:
+	input:
+                 fq1="filtered_reads/{sample}_1_cdhit_filtered_pairs_R1.fastq",
+                 fq2="filtered_reads/{sample}_2_cdhit_filtered_pairs_R2.fastq"
+	output:
+		 "filtered_reads/{sample}_1_cdhit_filtered_pairs_R1.cor.fq",
+                 "filtered_reads/{sample}_2_cdhit_filtered_pairs_R2.cor.fq"
+	params:
+	    	 outdir="filtered_reads"
+	threads: 2
+	log:
+		 "logs/lighter/{sample}.log"
+	shell:
+		 "(lighter -r {input.fq1} -r {input.fq2} -K 23 14000000 -maxcor 2 -t {threads} -od {params.outdir}) 2> {log}"
+
+rule bwa_map:
+	input:
+		ref=expand("data/{genome}.fa", genome = REFERENCE),
+		fq=expand("filtered_reads/{{sample}}_{repl}_cdhit_filtered_pairs_R{repl}.cor.fq", repl = REPLICATES)
+	output:
+		"bam_files/{sample}.sam.gz"
+	threads: 2
+	log:
+		"logs/bwa/{sample}.log"
+	shell:
+		"(bwa mem {input.ref} {input.fq} -t {threads} -v 0 && " 
+		"gzip -3  > {output}) 2> {log}"

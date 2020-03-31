@@ -1,13 +1,13 @@
 __default__:
     nCPUs     : 1
     queue     : "normal"
-    memory    : 1000
+    memory    : 3000
     resources : "\"rusage[mem=1000] span[hosts=1]\""
     name      : "JOBNAME.{rule}.{wildcards}"
     output    : "logs/cluster_{rule}.{wildcards}.o"
     error     : "logs/cluster_{rule}.{wildcards}.e"
 
-bwa_ref_index:
+bwa_ref_index: &name
     nCPUs     : 2
     queue     : "multicore20"
     memory    : 5000
@@ -22,3 +22,5 @@ cd_hit:
     resources : "\"rusage[mem=50000] span[hosts=1]\""
     output    : "logs/cluster_{rule}.{wildcards}.o"
     error     : "logs/cluster_{rule}.{wildcards}.e"
+
+bwa_map: *name

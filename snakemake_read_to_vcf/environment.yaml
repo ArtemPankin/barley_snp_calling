@@ -3,16 +3,19 @@ name: snakemake_read_vcf
 channels:
   - bioconda
   - conda-forge
-  
+  - ostrokach 
 
 dependencies:
+        
   - bioconda::snakemake-minimal =5.11.2
   - python =3.7
+  - singularity =3.5.3
   - samtools =1.9
   - bwa =0.7.17
   - graphviz =2.38.0
   - gatk4 =4.1.5.0
   - bzip2 =1.0.8
+  - ostrokach::gzip =1.7
   - cd-hit-auxtools =4.6.8
   - fastx_toolkit =0.0.14
   - lighter =1.1.2
