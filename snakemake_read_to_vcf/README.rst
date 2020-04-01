@@ -9,6 +9,6 @@ Snakemake pipeline
 (4) create data/ folder with required files (reference genome fasta; input fq.bz2 files)\
 
 
-.. image:: snakemake_read_to_vcf/img/dag.png
+.. image:: img/dag.png
    :width: 600
 
