@@ -23,3 +23,5 @@ Snakemake pipeline
 (3) activate conda environment (conda-env activate snakemake_read_vcf) \
 (4) create data/ folder with required files (reference genome fasta; input fq.bz2 files)
 
+.. image:: snakemake_read_to_vcf/dag.png
+

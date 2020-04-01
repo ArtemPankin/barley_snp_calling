@@ -8,7 +8,7 @@ __default__:
     error     : "logs/cluster_{rule}.{wildcards}.e"
 
 bwa_ref_index: &name
-    nCPUs     : 2
+    nCPUs     : 4
     queue     : "multicore20"
     memory    : 5000
     resources : "\"rusage[mem=5000] span[hosts=1]\""

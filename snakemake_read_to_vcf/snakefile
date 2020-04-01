@@ -24,7 +24,7 @@ rule all:
            expand("data/{genome}.dict", genome = REFERENCE),
            expand("data/{genome}.fa.fai", genome = REFERENCE),
            expand("data/{genome}.fa.pac", genome = REFERENCE),
-	   expand("bam_files/{sample}.sam.gz", sample = SAMPLES.split(" "))
+	   expand("bam_files/{sample}.bam", sample = SAMPLES.split(" "))
 rule create_seq_dictionary:
     input: 
              "data/{genome}.fa"
@@ -130,10 +130,24 @@ rule bwa_map:
 		ref=expand("data/{genome}.fa", genome = REFERENCE),
 		fq=expand("filtered_reads/{{sample}}_{repl}_cdhit_filtered_pairs_R{repl}.cor.fq", repl = REPLICATES)
 	output:
-		"bam_files/{sample}.sam.gz"
-	threads: 2
+		"bam_files/{sample}.sam.gz",
+	threads: 4
 	log:
 		"logs/bwa/{sample}.log"
 	shell:
-		"(bwa mem {input.ref} {input.fq} -t {threads} -v 0 && " 
-		"gzip -3  > {output}) 2> {log}"
+		"(bwa mem {input.ref} {input.fq} -t {threads} -v 0 | " 
+		"gzip -3  > {output} && "
+		"gzip -3 {input.fq}) 2> {log}"
+
+rule samtools_filt:
+	input:
+		"bam_files/{sample}.sam.gz"
+	output:
+		"bam_files/{sample}.bam"
+	log:
+		"logs/{sample}.log"
+	params:
+		"-S -q 1 -f 2"
+	shell:
+		"(samtools view {params} -b {input} | "
+		"samtools sort /dev/fd/0 -o {output}) 2> {log}"
