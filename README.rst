@@ -13,7 +13,7 @@ BASH pipeline
 (4) after all bsub jobs are finished, run merge_UG1.sh \
 (5) run filtering_vsqr.sh
 
-Snakemake pipeline
+Snakemake pipeline (excerpt: read grooming and mapping)
 ========================================
 
 *if on LSF cluster, launch as "sh scripts/submit_lsf.sh; adjust required and available resources in cluster.yaml*
